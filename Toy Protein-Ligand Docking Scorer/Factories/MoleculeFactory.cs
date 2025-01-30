@@ -49,7 +49,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
         public static Protein CreateFromPDB(string fileDirectory)
         {
             // PDB File Format - Atoms
-            // record atom# atom type  residue  chain  residue#         XYZcoords         occupancy   beta factor   element
+            // record atom# atom type  residue  chainId  residue#         XYZcoords         occupancy   beta factor   element
             // ATOM   3320     NH2       ARG      A       27      3.861  39.707  26.866     1.00        62.11          N  
 
 
@@ -60,6 +60,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
 
             string name = Regex.Split(sr.ReadLine(), @"\s+")[3];
 
+            Dictionary<(char chainId, int resNum), Residue> residueMap = new Dictionary<(char chainId, int resNum), Residue>();
             List<Atom> atoms = new List<Atom>();
             List<Bond> bonds = new List<Bond>();
             HashSet<int> seenAtoms = new HashSet<int>();
@@ -73,8 +74,8 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                     // Instead of using regex to parse lines, use the PDBs standard index structure to skim substrings. This will parse faster than regex due to the lack of searching and instead indexing.
                     int atomNumber = int.Parse(row.Substring(6, 5));
                     string atomType = row.Substring(13, 3).TrimEnd();
-                    string residue = row.Substring(17, 3);
-                    char chain = row[21];
+                    string residue = row.Substring(17, 3).Trim();
+                    char chainId = row[21];
                     int residueNumber = int.Parse(row.Substring(22, 4).TrimEnd());
                     double x = double.Parse(row.Substring(26, 12).Trim());
                     double y = double.Parse(row.Substring(38, 8).Trim());
@@ -83,7 +84,18 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                     double betaFactor = double.Parse(row.Substring(60, 6));
                     string element = row.Substring(76, 2).Trim();
 
-                    atoms.Add(new Atom(x, y, z, element, atomNumber, atomType, residue, residueNumber, chain, occupancy, betaFactor, isHeteroatom));
+                    Atom newAtom = new Atom(x, y, z, element, atomNumber, atomType, residue, residueNumber, chainId, occupancy, betaFactor, isHeteroatom);
+
+                    Residue res;
+                    if (!residueMap.TryGetValue((chainId, residueNumber), out res))
+                    {
+                        res = new Residue(residue, residueNumber, chainId);
+                        residueMap.Add((chainId, residueNumber), res);
+                    }
+                    res.addAtom(atomType, newAtom);
+
+                    atoms.Add(newAtom);
+
                 }
                 else if (row.StartsWith("CONECT")) // These bonds are only the outlier bonds and this block does not cover all bonds of the protein. The other bonds need to be inferred based on other information provided.
                 {
@@ -99,7 +111,8 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                     }
                 }
             }
-            return new Protein(name, atoms, bonds);
+            Console.WriteLine();
+            return new Protein(name, residueMap, atoms, bonds);
         }
     }
 }

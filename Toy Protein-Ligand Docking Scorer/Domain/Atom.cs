@@ -26,7 +26,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             this.coordinates = new double[3] { x, y, z };
             this.element = element;
         }
-
+        
         public Atom(double x, double y, double z, string element, int atomNumber, string atomType, string residue, int residueNumber, char chain, double occupancy, double betaFactor, bool heteroatom)
         {
             this.element = element;
