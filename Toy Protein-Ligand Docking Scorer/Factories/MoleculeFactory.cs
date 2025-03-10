@@ -64,6 +64,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             List<Atom> atoms = new List<Atom>();
             List<Bond> bonds = new List<Bond>();
             HashSet<int> seenAtoms = new HashSet<int>();
+            HashSet<string> seenResidues = new HashSet<string>();
             string row;
             while ((row = sr.ReadLine()) != null)
             {
@@ -84,6 +85,8 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                     double betaFactor = double.Parse(row.Substring(60, 6));
                     string element = row.Substring(76, 2).Trim();
 
+                    seenResidues.Add(residue);
+
                     Atom newAtom = new Atom(x, y, z, element, atomNumber, atomType, residue, residueNumber, chainId, occupancy, betaFactor, isHeteroatom);
 
                     Residue res;
@@ -96,6 +99,12 @@ namespace Toy_Protein_Ligand_Docking_Scorer
 
                     atoms.Add(newAtom);
 
+                    // Determine Bond
+                    // TODO I'm leaving a placeholder 1 for all bonds, but this should be inferred based on the structure of the molecules amino acids
+
+
+                    // Create Bond
+
                 }
                 else if (row.StartsWith("CONECT")) // These bonds are only the outlier bonds and this block does not cover all bonds of the protein. The other bonds need to be inferred based on other information provided.
                 {
@@ -106,12 +115,36 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                     {
                         int neighborIndex = int.Parse(row.Substring((11 + (5 * i)), 5)) - 1;
                         if (seenAtoms.Contains(neighborIndex)) continue;
-                        // TODO I'm leaving a placeholder 1 for all bonds, but this should be inferred based on the structure of the molecules amino acids
                         bonds.Add(new Bond(atoms[atomIndex], atoms[neighborIndex], 1));
                     }
                 }
             }
-            Console.WriteLine();
+            
+
+            // Display seen residues
+            foreach (string value in seenResidues)
+            {
+                Console.WriteLine(value);
+            }
+            Console.WriteLine(seenResidues.Count());
+
+            // Check for copied bonds 
+            HashSet<(Atom, Atom)> bondSet = new HashSet<(Atom, Atom)>();
+            foreach (Bond bond in bonds) 
+            {
+                (Atom, Atom) bondPair = (bond.Atoms[0], bond.Atoms[1]);
+                (Atom, Atom) reverseBondPair = (bond.Atoms[1], bond.Atoms[0]);
+
+                if (bondSet.Contains(bondPair) || bondSet.Contains(reverseBondPair))
+                {
+                    Console.WriteLine("DUPLICATE FOUND: " + bondPair);
+                }
+                else 
+                {
+                    bondSet.Add(bondPair);
+                }
+            }
+
             return new Protein(name, residueMap, atoms, bonds);
         }
     }
