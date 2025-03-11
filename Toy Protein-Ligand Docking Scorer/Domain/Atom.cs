@@ -8,17 +8,17 @@ namespace Toy_Protein_Ligand_Docking_Scorer
 {
     public class Atom
     {
-        private string element { get; set; }
-        private double[] coordinates { get; set; }
-        private int atomNumber { get; set; }
-        private string atomType { get; set; } // TODO : Make atomType an object type
-        private string residue { get; set; }
-        private int residueNumber { get; set; }
-        private char chain { get; set; }
-        private double occupancy { get; set; }
-        private double betaFactor { get; set; }
-        private bool heteroatom { get; set; }
-        private List<Atom> adjacentAtoms { get; } = new List<Atom>();
+        public string element { get; set; }
+        public double[] coordinates { get; set; }
+        public int atomNumber { get; set; }
+        public string atomType { get; set; }
+        public Residue residue { get; set; }
+        public int residueNumber { get; set; }
+        public char chain { get; set; }
+        public double occupancy { get; set; }
+        public double betaFactor { get; set; }
+        public bool heteroatom { get; set; }
+        public List<Atom> adjacentAtoms { get; } = new List<Atom>();
 
 
         public Atom(double x, double y, double z, string element)
@@ -27,7 +27,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             this.element = element;
         }
         
-        public Atom(double x, double y, double z, string element, int atomNumber, string atomType, string residue, int residueNumber, char chain, double occupancy, double betaFactor, bool heteroatom)
+        public Atom(double x, double y, double z, string element, int atomNumber, string atomType, Residue residue, int residueNumber, char chain, double occupancy, double betaFactor, bool heteroatom)
         {
             this.element = element;
             this.coordinates = new double[3] { x, y, z };
@@ -45,5 +45,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
         {
             this.adjacentAtoms.Add(neighbor);
         }
+
+
     }
 }

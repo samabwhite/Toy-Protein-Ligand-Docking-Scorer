@@ -31,30 +31,50 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             string row;
             while ((row = sr.ReadLine()) != null)
             {
-                if (row.Substring(0, 5).CompareTo("data_") == 0)
+                if (row.Length > 5 && row.Substring(0, 5).CompareTo("data_") == 0)
                 {
                     string residueName = row.Substring(5);
 
-                    while ((sr.ReadLine()).CompareTo("_chem_comp_bond.pdbx_ordinal ") != 0); // Skip until the bond table
+                    if (!this.mapping.ContainsKey(residueName)) // add AtomType dictionary to new residue names
+                    {
+                        this.mapping[residueName] = new Dictionary<string, List<(string, string, bool, bool)>>();
+                    }
 
-                    while ((row = sr.ReadLine()).CompareTo("# ") != 0) 
+                    while (sr.ReadLine().TrimEnd().CompareTo("_chem_comp_bond.pdbx_ordinal") != 0) {}; // Skip until the bond table
+
+                    while (!(row = sr.ReadLine()).TrimEnd().StartsWith("#"))
                     {
                         string[] values = Regex.Split(row.TrimEnd(), @"\s+");
 
-                        string atomType1 = values[1];
-                        string atomType2 = values[2];
+                        string atomType1 = values[1].Trim('\"');
+                        string atomType2 = values[2].Trim('\"');
                         string bondType = values[3];
                         bool aromaticFlag = char.Parse(values[4]) == 'Y';
                         bool stereoFlag = char.Parse(values[5]) == 'Y';
-                        
-                        this.mapping[residueName][atomType1].Add((atomType2, bondType, aromaticFlag, stereoFlag));
-                    }
 
+                        if (!this.mapping[residueName].ContainsKey(atomType1)) // add List of paired atoms for new Atom Types
+                        {
+                            this.mapping[residueName][atomType1] = new List<(string, string, bool, bool)>();
+                        }
+
+                        if (!this.mapping[residueName].ContainsKey(atomType2)) // add reflective pair
+                        {
+                            this.mapping[residueName][atomType2] = new List<(string, string, bool, bool)>();
+                        }
+
+                        this.mapping[residueName][atomType1].Add((atomType2, bondType, aromaticFlag, stereoFlag));
+                        this.mapping[residueName][atomType2].Add((atomType1, bondType, aromaticFlag, stereoFlag));
+                    }
                 }
             }
         }
 
-        public void storeResidueDictionary(string newFileName) 
+        public List<(string, string, bool, bool)> getBonds(string residueName, string atomType)
+        {
+            return mapping[residueName][atomType];
+        }
+
+        public void StoreResidueDictionary(string newFileName) 
         {
             Stream stream = File.Open(newFileName.TrimEnd() + ".dat", FileMode.Create);
             BinaryFormatter bf = new BinaryFormatter();
@@ -65,14 +85,21 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             this.mapping = null;
         }
 
-        public void loadResidueDictionary(string fileDirectory) 
+        public static ResidueDictionary LoadResidueDictionary(string fileDirectory) 
         {
+            if (!File.Exists(fileDirectory)) 
+            {
+                throw new FileNotFoundException("Residue Dictionary file not found");
+            }
+
             Stream stream = File.Open(fileDirectory, FileMode.Open);
             BinaryFormatter bf = new BinaryFormatter();
 
-            this.mapping = (Dictionary<string, Dictionary<string, List<(string, string, bool, bool)>>>)bf.Deserialize(stream);
+            ResidueDictionary residueDictionary = new ResidueDictionary();
+            residueDictionary.mapping = (Dictionary<string, Dictionary<string, List<(string, string, bool, bool)>>>)bf.Deserialize(stream);
 
             stream.Close();
+            return residueDictionary;
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using static Toy_Protein_Ligand_Docking_Scorer.Bond;
 
 namespace Toy_Protein_Ligand_Docking_Scorer
 {
@@ -46,17 +47,24 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             return new Ligand(moleculeName, atoms, bonds);
         }
 
-        public static Protein CreateFromPDB(string fileDirectory)
+        // This overloading version is used for instances where you want to use a cif file, but don't plan on manipulating it before
+        // passing it to the CreateFromPDB file. For example, they don't plan on saving the dictionary so they just need to pass the directory.
+        public static Protein CreateFromPDB(string pdfFileDirectory, string residueDictFileDirectory)
+        {
+            ResidueDictionary residueDictionary = ResidueDictionary.LoadResidueDictionary(residueDictFileDirectory);
+            return CreateFromPDB(pdfFileDirectory, residueDictionary);
+        }
+
+        public static Protein CreateFromPDB(string pdbFileDirectory, ResidueDictionary residueDictionary)
         {
             // PDB File Format - Atoms
             // record atom# atom type  residue  chainId  residue#         XYZcoords         occupancy   beta factor   element
             // ATOM   3320     NH2       ARG      A       27      3.861  39.707  26.866     1.00        62.11          N  
 
-
             // TODO : Add file type verification
             // Add checks if file exists
 
-            StreamReader sr = new StreamReader(fileDirectory);
+            StreamReader sr = new StreamReader(pdbFileDirectory);
 
             string name = Regex.Split(sr.ReadLine(), @"\s+")[3];
 
@@ -64,7 +72,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             List<Atom> atoms = new List<Atom>();
             List<Bond> bonds = new List<Bond>();
             HashSet<int> seenAtoms = new HashSet<int>();
-            HashSet<string> seenResidues = new HashSet<string>();
+            HashSet<string> seenResidues = new HashSet<string>(); // TODO: Remove since it is only used for debugging
             string row;
             while ((row = sr.ReadLine()) != null)
             {
@@ -85,48 +93,68 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                     double betaFactor = double.Parse(row.Substring(60, 6));
                     string element = row.Substring(76, 2).Trim();
 
-                    seenResidues.Add(residue);
+                    seenResidues.Add(residue); // TODO: Remove since it is only used for debugging
 
-                    Atom newAtom = new Atom(x, y, z, element, atomNumber, atomType, residue, residueNumber, chainId, occupancy, betaFactor, isHeteroatom);
-
-                    Residue res;
-                    if (!residueMap.TryGetValue((chainId, residueNumber), out res))
+                    if (!residueMap.TryGetValue((chainId, residueNumber), out Residue res))
                     {
                         res = new Residue(residue, residueNumber, chainId);
                         residueMap.Add((chainId, residueNumber), res);
                     }
+
+                    Atom newAtom = new Atom(x, y, z, element, atomNumber, atomType, res, residueNumber, chainId, occupancy, betaFactor, isHeteroatom);
+
                     res.addAtom(atomType, newAtom);
 
                     atoms.Add(newAtom);
-
-                    // Determine Bond
-                    // TODO I'm leaving a placeholder 1 for all bonds, but this should be inferred based on the structure of the molecules amino acids
-
-
-                    // Create Bond
-
                 }
-                else if (row.StartsWith("CONECT")) // These bonds are only the outlier bonds and this block does not cover all bonds of the protein. The other bonds need to be inferred based on other information provided.
+                else if (row.StartsWith("CONECT"))
                 {
-                    int neighbors = (row.TrimEnd().Length - 11) / 5;
+                    int neighborCount = (row.TrimEnd().Length - 11) / 5;
                     int atomIndex = int.Parse(row.Substring(6, 5)) - 1;
                     seenAtoms.Add(atomIndex);
-                    for (int i = 0; i < neighbors; i++)
+                    for (int i = 0; i < neighborCount; i++)
                     {
                         int neighborIndex = int.Parse(row.Substring((11 + (5 * i)), 5)) - 1;
                         if (seenAtoms.Contains(neighborIndex)) continue;
-                        bonds.Add(new Bond(atoms[atomIndex], atoms[neighborIndex], 1));
+                        int bondCount = 1; // TODO: This is temporarily set to 1, but this bondCount should be inferred based on other context clues
+                        bonds.Add(new Bond(atoms[atomIndex], atoms[neighborIndex], bondCount));
                     }
                 }
             }
-            
 
+            // Second pass for inferring bonds
+            Dictionary<string, BondOrder> BondOrderMapping = new Dictionary<string, BondOrder>
+            {
+                { "SING", BondOrder.SingleBond },
+                { "DOUB", BondOrder.DoubleBond },
+                { "TRIP", BondOrder.TripleBond }
+            };
+
+            foreach (Atom atom in atoms)
+            {
+
+                List<(string, string, bool, bool)> foundBonds = residueDictionary.getBonds(atom.residue.residueAbbrev, atom.atomType);
+                foreach ((string otherAtomType, string bondType, bool aromaticFlag, bool stereoFlag) in foundBonds) {
+                    if (atom.residue.atomTypes.ContainsKey(otherAtomType)) // If the residue does not perfectly match and is missing atoms, skip those bonds
+                    {
+                        bonds.Add(new Bond(atom, atom.residue.atomTypes[otherAtomType], (int)BondOrderMapping[bondType], aromaticFlag, stereoFlag));
+                    }
+                }
+            }
+
+            // DEBUGGING
             // Display seen residues
             foreach (string value in seenResidues)
             {
                 Console.WriteLine(value);
             }
             Console.WriteLine(seenResidues.Count());
+
+            // Display created bonds:
+            foreach (Bond bond in bonds) 
+            {
+                Console.WriteLine(bond.Atoms[0].atomType + " " + bond.Atoms[1].atomType);
+            }
 
             // Check for copied bonds 
             HashSet<(Atom, Atom)> bondSet = new HashSet<(Atom, Atom)>();
@@ -135,9 +163,9 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                 (Atom, Atom) bondPair = (bond.Atoms[0], bond.Atoms[1]);
                 (Atom, Atom) reverseBondPair = (bond.Atoms[1], bond.Atoms[0]);
 
-                if (bondSet.Contains(bondPair) || bondSet.Contains(reverseBondPair))
+                if (bondSet.Contains(bondPair) && bondSet.Contains(reverseBondPair))
                 {
-                    Console.WriteLine("DUPLICATE FOUND: " + bondPair);
+                    Console.WriteLine("DUPLICATE FOUND: " + bondPair.Item1.atomType + " " + bondPair.Item2.atomType);
                 }
                 else 
                 {

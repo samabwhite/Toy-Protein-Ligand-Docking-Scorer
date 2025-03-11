@@ -16,8 +16,11 @@ namespace Toy_Protein_Ligand_Docking_Scorer
     {
         static void Main(string[] args)
         {
+            ResidueDictionary residueDictionary = new ResidueDictionary("C:/Users/samwh/source/repos/Toy Protein-Ligand Docking Scorer/components.cif");
+            // residueDictionary.StoreResidueDictionary("components"); // BROKEN TOO LARGE
+
             //Ligand newLigand = MoleculeFactory.CreateFromSDFFile("C:/Users/samwh/source/repos/Toy Protein-Ligand Docking Scorer/AMO_ideal.sdf");
-            MoleculeFactory.CreateFromPDB("C:/Users/samwh/source/repos/Toy Protein-Ligand Docking Scorer/1il2.pdb");
+            MoleculeFactory.CreateFromPDB("C:/Users/samwh/source/repos/Toy Protein-Ligand Docking Scorer/1il2.pdb", residueDictionary);
             
 
 
