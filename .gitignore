@@ -1,0 +1,18 @@
+# Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Build outputs
+bin/
+obj/
+
+# Publish profile
+*.pubxml
+*.pubxml.user
+
+# Other
+*.pdb
+*.log
+*.cache
+*.preferences
