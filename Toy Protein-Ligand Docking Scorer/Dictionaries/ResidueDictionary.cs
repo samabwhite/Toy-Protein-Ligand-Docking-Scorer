@@ -9,22 +9,38 @@ using System.Windows.Markup;
 using System.Text.RegularExpressions;
 using System.Security.Cryptography.X509Certificates;
 using System.Runtime.Serialization.Formatters.Binary;
-using System.Xml.Serialization;
+using System.Text.Json;
+
 
 
 namespace Toy_Protein_Ligand_Docking_Scorer
 {
     public class ResidueDictionary
     {
-        // { ResidueName: { AtomType1 : [pairedToAtomType2, pairedToAtomType3, pairedToAtomType4] } }
-        // pairedToAtomyType = (AtomyTypeX, BondType, AromaticFlag, StereoFlag)
-        public Dictionary<string, Dictionary<string, List<(string, string, bool, bool)>>> mapping;
+        public class BondInfo 
+        {
+            public string OtherAtomType { get; set; }
+            public string BondType { get; set; }
+            public bool AromaticFlag { get; set; }
+            public bool StereoFlag { get; set; }
+            public BondInfo(string otherAtomType, string bondType, bool aromaticFlag, bool stereoFlag)
+            {
+                this.OtherAtomType = otherAtomType;
+                this.BondType = bondType;
+                this.AromaticFlag = aromaticFlag;
+                this.StereoFlag = stereoFlag;
+            }
+        }
+
+        // { ResidueName: { AtomType1 : bondInfo1, ...] } }
+        // bondInfoX = (AtomyTypeX, BondType, AromaticFlag, StereoFlag)
+        public Dictionary<string, Dictionary<string, List<BondInfo>>> mapping;
 
         public ResidueDictionary() {}
 
         public ResidueDictionary(string fileDirectory)
         {
-            mapping = new Dictionary<string, Dictionary<string, List<(string, string, bool, bool)>>>();
+            mapping = new Dictionary<string, Dictionary<string, List<BondInfo>>>();
 
             StreamReader sr = new StreamReader(fileDirectory);
 
@@ -37,7 +53,7 @@ namespace Toy_Protein_Ligand_Docking_Scorer
 
                     if (!this.mapping.ContainsKey(residueName)) // add AtomType dictionary to new residue names
                     {
-                        this.mapping[residueName] = new Dictionary<string, List<(string, string, bool, bool)>>();
+                        this.mapping[residueName] = new Dictionary<string, List<BondInfo>>();
                     }
 
                     while (sr.ReadLine().TrimEnd().CompareTo("_chem_comp_bond.pdbx_ordinal") != 0) {}; // Skip until the bond table
@@ -54,35 +70,33 @@ namespace Toy_Protein_Ligand_Docking_Scorer
 
                         if (!this.mapping[residueName].ContainsKey(atomType1)) // add List of paired atoms for new Atom Types
                         {
-                            this.mapping[residueName][atomType1] = new List<(string, string, bool, bool)>();
+                            this.mapping[residueName][atomType1] = new List<BondInfo>();
                         }
 
                         if (!this.mapping[residueName].ContainsKey(atomType2)) // add reflective pair
                         {
-                            this.mapping[residueName][atomType2] = new List<(string, string, bool, bool)>();
+                            this.mapping[residueName][atomType2] = new List<BondInfo>();
                         }
 
-                        this.mapping[residueName][atomType1].Add((atomType2, bondType, aromaticFlag, stereoFlag));
-                        this.mapping[residueName][atomType2].Add((atomType1, bondType, aromaticFlag, stereoFlag));
+                        this.mapping[residueName][atomType1].Add(new BondInfo(atomType2, bondType, aromaticFlag, stereoFlag));
+                        this.mapping[residueName][atomType2].Add(new BondInfo(atomType1, bondType, aromaticFlag, stereoFlag));
                     }
                 }
             }
         }
 
-        public List<(string, string, bool, bool)> getBonds(string residueName, string atomType)
+        public List<BondInfo> getBonds(string residueName, string atomType)
         {
-            return mapping[residueName][atomType];
+            return mapping[residueName][atomType]; 
         }
 
         public void StoreResidueDictionary(string newFileName) 
         {
-            Stream stream = File.Open(newFileName.TrimEnd() + ".dat", FileMode.Create);
-            BinaryFormatter bf = new BinaryFormatter();
+            if (!newFileName.EndsWith(".json")) newFileName += ".json";
 
-            bf.Serialize(stream, this.mapping);
-            stream.Close();
+            string jsonString = JsonSerializer.Serialize(this.mapping);
 
-            this.mapping = null;
+            File.WriteAllText(newFileName.Trim(), jsonString);
         }
 
         public static ResidueDictionary LoadResidueDictionary(string fileDirectory) 
@@ -92,13 +106,14 @@ namespace Toy_Protein_Ligand_Docking_Scorer
                 throw new FileNotFoundException("Residue Dictionary file not found");
             }
 
-            Stream stream = File.Open(fileDirectory, FileMode.Open);
-            BinaryFormatter bf = new BinaryFormatter();
+            if (!fileDirectory.EndsWith(".json")) fileDirectory += ".json";
+
 
             ResidueDictionary residueDictionary = new ResidueDictionary();
-            residueDictionary.mapping = (Dictionary<string, Dictionary<string, List<(string, string, bool, bool)>>>)bf.Deserialize(stream);
+            string loadedJson = File.ReadAllText(fileDirectory);
 
-            stream.Close();
+            residueDictionary.mapping = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, List<BondInfo>>>>(loadedJson);
+
             return residueDictionary;
         }
     }

@@ -49,10 +49,10 @@ namespace Toy_Protein_Ligand_Docking_Scorer
 
         // This overloading version is used for instances where you want to use a cif file, but don't plan on manipulating it before
         // passing it to the CreateFromPDB file. For example, they don't plan on saving the dictionary so they just need to pass the directory.
-        public static Protein CreateFromPDB(string pdfFileDirectory, string residueDictFileDirectory)
+        public static Protein CreateFromPDB(string pdbFileDirectory, string residueDictFileDirectory)
         {
             ResidueDictionary residueDictionary = ResidueDictionary.LoadResidueDictionary(residueDictFileDirectory);
-            return CreateFromPDB(pdfFileDirectory, residueDictionary);
+            return CreateFromPDB(pdbFileDirectory, residueDictionary);
         }
 
         public static Protein CreateFromPDB(string pdbFileDirectory, ResidueDictionary residueDictionary)
@@ -133,11 +133,11 @@ namespace Toy_Protein_Ligand_Docking_Scorer
             foreach (Atom atom in atoms)
             {
 
-                List<(string, string, bool, bool)> foundBonds = residueDictionary.getBonds(atom.residue.residueAbbrev, atom.atomType);
-                foreach ((string otherAtomType, string bondType, bool aromaticFlag, bool stereoFlag) in foundBonds) {
-                    if (atom.residue.atomTypes.ContainsKey(otherAtomType)) // If the residue does not perfectly match and is missing atoms, skip those bonds
+                List<ResidueDictionary.BondInfo> foundBonds = residueDictionary.getBonds(atom.residue.residueAbbrev, atom.atomType);
+                foreach (ResidueDictionary.BondInfo bondInfo in foundBonds) {
+                    if (atom.residue.atomTypes.ContainsKey(bondInfo.OtherAtomType)) // If the residue does not perfectly match and is missing atoms, skip those bonds
                     {
-                        bonds.Add(new Bond(atom, atom.residue.atomTypes[otherAtomType], (int)BondOrderMapping[bondType], aromaticFlag, stereoFlag));
+                        bonds.Add(new Bond(atom, atom.residue.atomTypes[bondInfo.OtherAtomType], (int)BondOrderMapping[bondInfo.BondType], bondInfo.AromaticFlag, bondInfo.StereoFlag));
                     }
                 }
             }
